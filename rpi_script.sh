@@ -15,8 +15,11 @@ doCommand () {
 	else
 		echo "REAL_RUN: $@"
 		if [ $1 = "fdisk" ]; then
-			echo $RPI_NAME > $BACKUP_PATH/sudofdisk-l.txt
-			$@ >> $BACKUP_PATH/sudofdisk-l.txt;
+			echo $RPI_NAME > $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+			echo "username $USERNAME" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+			echo "password $PASSWORD" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+			$@ >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt;
+			
 		else
 			$@;					
 		fi
@@ -28,13 +31,15 @@ doCommand () {
 echo "RPI utility script"
 
 if [ "$#" -lt "8" -o "$1" = "help" ]; then
-	echo "At least five arguments pairs are required. Usage <$myAppName [device] [backup_path] [run_mode] [name] [dry-run]>" 
+	echo "At least five arguments pairs are required. Usage <$myAppName [device] [backup_path] [run_mode] [name] [dry-run] [password]>" 
 	echo "device = /dev/sdx"
 	echo "backup_path = /media/cezar/Arhiva/PI/20160000"
 	echo "run_mode = restore / backup" 
 	echo "name = rpi2_jessie_minimal"
  	echo "dry-run = true / false"
-	echo "Example ./$myAppName device /dev/sdc backup_path /media/cezar/Arhiva/PI/20160000 run_mode backup name rpi dry-run true"
+	echo "username = myUsername"
+	echo "password = 12345"
+	echo "Example ./$myAppName device /dev/sdc backup_path /media/cezar/Arhiva/PI/20160000 run_mode backup name rpi dry-run true username cezar password 12345"
 	exit ;
 else
 	echo "Checking args.."
@@ -52,6 +57,10 @@ else
 			RPI_NAME=$2
 		elif [ "$1" = "dry-run" ]; then
 			DRY_RUN=$2
+		elif [ "$1" = "username" ]; then
+			USERNAME=$2
+		elif [ "$1" = "password" ]; then
+			PASSWORD=$2
 		fi
 		shift
 		shift
