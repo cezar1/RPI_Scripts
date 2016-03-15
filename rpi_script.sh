@@ -1,11 +1,13 @@
 #!/bin/bash
 myAppName=rpi_script
-export RPI_DEVICE=/dev/sdc
-export BACKUP_PATH=/media/cezar/Arhiva/PI/20160000
+
+#All args are read from command line!
+#export RPI_DEVICE=/dev/sdc
+#export BACKUP_PATH=/media/cezar/Arhiva/PI/20160000
 #export RUN_MODE=restore
-export RUN_MODE=backup
-export DRY_RUN="true"
-export RPI_NAME=rpi_jessie
+#export RUN_MODE=backup
+#export DRY_RUN="true"
+#export RPI_NAME=rpi_jessie
 
 doCommand () {
 	if [ $DRY_RUN = "true" ]; then
@@ -32,6 +34,7 @@ if [ "$#" -lt "8" -o "$1" = "help" ]; then
 	echo "run_mode = restore / backup" 
 	echo "name = rpi2_jessie_minimal"
  	echo "dry-run = true / false"
+	echo "Example ./$myAppName device /dev/sdc backup_path /media/cezar/Arhiva/PI/20160000 run_mode backup name rpi dry-run true"
 	exit ;
 else
 	echo "Checking args.."
@@ -98,14 +101,32 @@ if [ $DRY_RUN = "true" ]; then
 	echo "DRY_RUN mode selected";
 elif [ $DRY_RUN = "false" ]; then
 	echo "REAL_RUN mode selected";
+	if [ "$EUID" -ne 0 ]
+	  then echo "Please run as root"
+	  exit
+	fi
 else
 	echo "Invalid DRY_RUN flag <<$DRY_RUN>> selected"
 	exit;
 fi
 echo "Doing <<$RUN_MODE>> job on $RPI_DEVICE with name $RPI_NAME with path set to $BACKUP_PATH flag DRY_RUN <<$DRY_RUN>>.."
+#First unmount device partitions
+myPartition=1
+myCommand="umount $RPI_DEVICE$myPartition"
+doCommand $myCommand
+myPartition=2
+myCommand="umount $RPI_DEVICE$myPartition"
+doCommand $myCommand
 
 if [ $RUN_MODE = "restore" ]; then
-	echo "Restore mode selected";
+	myPartition=1
+	mySuffix="_head"
+	myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$RPI_DEVICE$myPartition"
+	doCommand $myCommand
+	myPartition=2
+	mySuffix="_main"
+	myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $RPI_DEVICE$myPartition"
+	doCommand $myCommand;
 elif [ $RUN_MODE = "backup" ]; then
 	if [ $DRY_RUN = "false" ]; then
 		if [ -e $BACKUP_PATH ]; then 
@@ -119,11 +140,11 @@ elif [ $RUN_MODE = "backup" ]; then
 	doCommand $myCommand 
 	myPartition=1
 	mySuffix="_head"
-	myCommand="sudo sudo dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$RPI_DEVICE$myPartition"
+	myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$RPI_DEVICE$myPartition"
 	doCommand $myCommand
 	myPartition=2
 	mySuffix="_main"
-	myCommand="sudo partclone.ext4 -c -d -s $RPI_DEVICE$myPartition -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
+	myCommand="partclone.ext4 -c -d -s $RPI_DEVICE$myPartition -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
 	doCommand $myCommand;
 fi
 #Backup
