@@ -1,5 +1,5 @@
 #!/bin/bash
-myAppName=rpi_script
+myAppName=rpi_2partition_manager
 
 #All args are read from command line!
 #export RPI_DEVICE=/dev/sdc
