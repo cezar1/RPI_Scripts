@@ -35,6 +35,7 @@ if [ -d "$DIRECTORY" ]; then
 		echo "$DIRECTORY exists, but is empty, extract some jdks in it!"
 		exit;
 	fi
+	cd
 	# Control will enter here if $DIRECTORY exists.
 	echo "Listing contents of $DIRECTORY into $HELPER_FILE"
 	rm $HELPER_FILE
