@@ -8,7 +8,14 @@ myAppName=rpi_2partition_manager
 #export RUN_MODE=backup
 #export DRY_RUN="true"
 #export RPI_NAME=rpi_jessie
-
+doQualifiedDeviceName () 
+{
+	if [ $RPI_DEVICE_MODE = "/dev/sd" ]; then
+		echo "$RPI_DEVICE"$1
+	elif [ $RPI_DEVICE_MODE = "/dev/mmcblk" ]; then
+		echo "$RPI_DEVICE"p$1
+	fi
+}
 doCommand () {
 	if [ $DRY_RUN = "true" ]; then
 		echo "DRY_RUN: $@"
@@ -18,6 +25,7 @@ doCommand () {
 			echo $RPI_NAME > $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
 			echo "username $USERNAME" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
 			echo "password $PASSWORD" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+			echo "sudo ./$myAppName.sh device null backup_path $BACKUP_PATH run_mode restore name $RPI_NAME dry-run true" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt 
 			$@ >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt;
 			
 		else
@@ -49,6 +57,13 @@ else
 		#echo "Current Parameter: $1 , Remaining $#"
 		if [ "$1" = "device" ]; then
 			RPI_DEVICE=$2
+			RPI_DEVICE_MODE="unknown"
+			if [ ${RPI_DEVICE::-1} = "/dev/sd" ]; then
+				RPI_DEVICE_MODE=${RPI_DEVICE::-1}
+			elif [ ${RPI_DEVICE::-1} = "/dev/mmcblk" ]; then
+				RPI_DEVICE_MODE=${RPI_DEVICE::-1}
+			fi
+			echo "Device mode is $RPI_DEVICE_MODE"
 		elif [ "$1" = "backup_path" ]; then
 			BACKUP_PATH=$2
 		elif [ "$1" = "run_mode" ]; then
@@ -72,6 +87,10 @@ if [ -z ${RPI_DEVICE+x} ]; then
 	exit ; 
 else 
 	echo "RPI_DEVICE is set to '$RPI_DEVICE'"; 
+fi
+if [ "$RPI_DEVICE_MODE" = "unknown" ]; then
+	echo "Device mode cannot be handled"
+	exit ;
 fi
 if [ -z ${BACKUP_PATH+x} ]; then 
 	echo "BACKUP_PATH is unset"
@@ -121,20 +140,26 @@ fi
 echo "Doing <<$RUN_MODE>> job on $RPI_DEVICE with name $RPI_NAME with path set to $BACKUP_PATH flag DRY_RUN <<$DRY_RUN>>.."
 #First unmount device partitions
 myPartition=1
-myCommand="umount $RPI_DEVICE$myPartition"
+
+qualifiedDeviceName=""
+qualifiedDeviceName=$(doQualifiedDeviceName $myPartition)
+myCommand="umount $qualifiedDeviceName"
 doCommand $myCommand
 myPartition=2
-myCommand="umount $RPI_DEVICE$myPartition"
+qualifiedDeviceName=$(doQualifiedDeviceName $myPartition)
+myCommand="umount $qualifiedDeviceName"
 doCommand $myCommand
 
 if [ $RUN_MODE = "restore" ]; then
 	myPartition=1
 	mySuffix="_head"
-	myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$RPI_DEVICE$myPartition"
+	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
+	myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$qualifiedDeviceName"
 	doCommand $myCommand
 	myPartition=2
 	mySuffix="_main"
-	myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $RPI_DEVICE$myPartition"
+	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
+	myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $qualifiedDeviceName"
 	doCommand $myCommand;
 elif [ $RUN_MODE = "backup" ]; then
 	if [ $DRY_RUN = "false" ]; then
@@ -149,11 +174,13 @@ elif [ $RUN_MODE = "backup" ]; then
 	doCommand $myCommand 
 	myPartition=1
 	mySuffix="_head"
-	myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$RPI_DEVICE$myPartition"
+	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
+	myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$qualifiedDeviceName"
 	doCommand $myCommand
 	myPartition=2
+	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
 	mySuffix="_main"
-	myCommand="partclone.ext4 -c -d -s $RPI_DEVICE$myPartition -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
+	myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
 	doCommand $myCommand;
 fi
 #Backup
