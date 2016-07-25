@@ -47,7 +47,7 @@ if [ "$#" -lt "8" -o "$1" = "help" ]; then
  	echo "dry-run = true / false"
 	echo "username = myUsername"
 	echo "password = 12345"
-	echo "Example ./$myAppName device /dev/sdc backup_path /media/cezar/Arhiva/PI/20160000 run_mode backup name rpi dry-run true username cezar password 12345"
+	echo "Example ./$myAppName.sh device /dev/sdc backup_path /media/cezar/Arhiva/PI/20160000 run_mode backup name rpi dry-run true username cezar password 12345"
 	exit ;
 else
 	echo "Checking args.."
@@ -65,7 +65,14 @@ else
 			fi
 			echo "Device mode is $RPI_DEVICE_MODE"
 		elif [ "$1" = "backup_path" ]; then
+			BACKUP_PATH_MODE="unknown"
 			BACKUP_PATH=$2
+			if [ ${BACKUP_PATH:0:6} = "ssh://" ]; then
+				BACKUP_PATH_MODE="ssh://"
+			else
+				BACKUP_PATH_MODE="fs"
+                        fi
+			echo "BACKUP_PATH_MODE is $BACKUP_PATH_MODE"
 		elif [ "$1" = "run_mode" ]; then
 			RUN_MODE=$2
 		elif [ "$1" = "name" ]; then
@@ -97,6 +104,11 @@ if [ -z ${BACKUP_PATH+x} ]; then
 	exit ; 
 else 
 	echo "BACKUP_PATH is set to '$BACKUP_PATH'"; 
+	
+fi
+if [ "$BACKUP_PATH_MODE" = "unknown" ]; then
+	echo "Backup path cannot be handled"
+	exit ;
 fi
 if [ -z ${RUN_MODE+x} ]; then 
 	echo "RUN_MODE is unset"
@@ -149,18 +161,35 @@ myPartition=2
 qualifiedDeviceName=$(doQualifiedDeviceName $myPartition)
 myCommand="umount $qualifiedDeviceName"
 doCommand $myCommand
-
+if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
+        BACKUP_PATH=${BACKUP_PATH:6:${#BACKUP_PATH}}
+        IFS='@' read USER ADDR2 <<<$BACKUP_PATH
+        IFS=':' read SERVER ADDR2 <<<$ADDR2
+        IFS='/' read PORT ADDR2 <<<$ADDR2
+	BACKUP_PATH_SSH_PREFIX="/$ADDR2/"
+fi
 if [ $RUN_MODE = "restore" ]; then
 	myPartition=1
 	mySuffix="_head"
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
-	myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$qualifiedDeviceName"
+	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"	
+		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+	else
+		myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$qualifiedDeviceName"
+	fi
 	doCommand $myCommand
 	myPartition=2
 	mySuffix="_main"
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
-	myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $qualifiedDeviceName"
+	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"
+		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+	else
+		myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $qualifiedDeviceName"
+	fi
 	doCommand $myCommand;
+
 elif [ $RUN_MODE = "backup" ]; then
 	if [ $DRY_RUN = "false" ]; then
 		if [ -e $BACKUP_PATH ]; then 
@@ -175,12 +204,22 @@ elif [ $RUN_MODE = "backup" ]; then
 	myPartition=1
 	mySuffix="_head"
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
-	myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$qualifiedDeviceName"
+	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"
+		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+	else
+		myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$qualifiedDeviceName"
+	fi
 	doCommand $myCommand
 	myPartition=2
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
 	mySuffix="_main"
-	myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
+	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"
+		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+	else
+		myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
+	fi
 	doCommand $myCommand;
 fi
 #Backup
