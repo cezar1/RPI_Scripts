@@ -22,20 +22,31 @@ doCommand () {
 	else
 		echo "REAL_RUN: $@"
 		if [ $1 = "fdisk" ]; then
-			echo $RPI_NAME > $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
-			echo "username $USERNAME" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
-			echo "password $PASSWORD" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
-			echo "sudo ./$myAppName.sh device null backup_path $BACKUP_PATH run_mode restore name $RPI_NAME dry-run true" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt 
-			$@ >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt;
+			if [ "$BACKUP_PATH_MODE"="ssh://" ]; then
+				echo "Doing LS on ssh destination"
+				echo $RPI_NAME > sudofdisk-l_$RPI_NAME.txt
+				echo "username $USERNAME" >> sudofdisk-l_$RPI_NAME.txt
+				echo "password $PASSWORD" >> sudofdisk-l_$RPI_NAME.txt
+				echo "sudo ./$myAppName.sh device null backup_path $BACKUP_PATH_MODE$BACKUP_PATH run_mode restore name $RPI_NAME dry-run true" >> sudofdisk-l_$RPI_NAME.txt 
+				$@ >> sudofdisk-l_$RPI_NAME.txt
+				eval "cat sudofdisk-l_$RPI_NAME.txt | ssh $USER@$SERVER -p $PORT \"cat > $BACKUP_PATH_SSH_PREFIX/sudofdisk-l_$RPI_NAME.txt\""
+				rm sudofdisk-l_$RPI_NAME.txt;
+			else
+				echo $RPI_NAME > $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+				echo "username $USERNAME" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+				echo "password $PASSWORD" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt
+				echo "sudo ./$myAppName.sh device null backup_path $BACKUP_PATH run_mode restore name $RPI_NAME dry-run true" >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt 
+				$@ >> $BACKUP_PATH/sudofdisk-l_$RPI_NAME.txt;
+			fi
 			
 		else
-			$@;					
+			eval $@;					
 		fi
 	fi
 }
 
 
-
+	
 echo "RPI utility script"
 
 if [ "$#" -lt "8" -o "$1" = "help" ]; then
@@ -173,8 +184,9 @@ if [ $RUN_MODE = "restore" ]; then
 	mySuffix="_head"
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
 	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
-		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"	
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.img"	
 		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+		myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH\" | pv | sudo dd of=$qualifiedDeviceName"
 	else
 		myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$qualifiedDeviceName"
 	fi
@@ -183,8 +195,9 @@ if [ $RUN_MODE = "restore" ]; then
 	mySuffix="_main"
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
 	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
-		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.ext4"
 		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+		myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH\" | sudo partclone.ext4 -r -d -o $qualifiedDeviceName"
 	else
 		myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $qualifiedDeviceName"
 	fi
@@ -192,12 +205,18 @@ if [ $RUN_MODE = "restore" ]; then
 
 elif [ $RUN_MODE = "backup" ]; then
 	if [ $DRY_RUN = "false" ]; then
-		if [ -e $BACKUP_PATH ]; then 
-			echo "Backup path exists";
+		if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
+			echo "Checking remote directory exits.."
+			myCommand="ssh $USER@$SERVER -p $PORT \"mkdir $BACKUP_PATH_SSH_PREFIX\""
+			doCommand $myCommand;
 		else
-			echo "Backup path doesn't exist, creating";
-			mkdir $BACKUP_PATH
-		fi;
+			if [ -e $BACKUP_PATH ]; then 
+				echo "Backup path exists";
+			else
+				echo "Backup path doesn't exist, creating";
+				mkdir $BACKUP_PATH
+			fi;
+		fi
 	fi
 	myCommand="fdisk -l $RPI_DEVICE"
 	doCommand $myCommand 
@@ -205,8 +224,9 @@ elif [ $RUN_MODE = "backup" ]; then
 	mySuffix="_head"
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
 	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
-		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.img"
 		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+		myCommand="dd if=$qualifiedDeviceName | pv | ssh $USER@$SERVER -p $PORT \"cat | dd of=$BACKUP_PATH\""
 	else
 		myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$qualifiedDeviceName"
 	fi
@@ -215,8 +235,8 @@ elif [ $RUN_MODE = "backup" ]; then
 	qualifiedDeviceName=$(doQualifiedDeviceName $myPartition) 
 	mySuffix="_main"
 	if [ "$BACKUP_PATH_MODE" = "ssh://" ]; then
-		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$mySuffix.img"
-		myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
+		BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.ext4"
+		myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName | ssh $USER@$SERVER -p $PORT \"cat > $BACKUP_PATH\""
 	else
 		myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
 	fi
