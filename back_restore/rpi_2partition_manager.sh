@@ -194,7 +194,7 @@ if [ $RUN_MODE = "restore" ]; then
 		myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH\" | pv | sudo dd of=$qualifiedDeviceName"
 	elif [ "$BACKUP_PATH_MODE" = "ssh+zip://" ]; then
                 BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.img.gz"
-                myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH\" | pv | gunzip | sudo dd of=$qualifiedDeviceName"
+                myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH | gunzip\" | pv | sudo dd of=$qualifiedDeviceName"
 	else
 		myCommand="dd if=$BACKUP_PATH/$RPI_NAME$mySuffix.img of=$qualifiedDeviceName"
 	fi
@@ -207,7 +207,7 @@ if [ $RUN_MODE = "restore" ]; then
 		myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH\" | sudo partclone.ext4 -r -d -o $qualifiedDeviceName"
 	elif [ "$BACKUP_PATH_MODE" = "ssh+zip://" ]; then
                 BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.ext4.gz"
-                myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH\" | gunzip | sudo partclone.ext4 -r -d -o $qualifiedDeviceName"
+                myCommand="ssh $USER@$SERVER -p $PORT \"cat $BACKUP_PATH | gunzip\" | sudo partclone.ext4 -r -d -o $qualifiedDeviceName"
 	else
 		myCommand="partclone.ext4 -r -d -s $BACKUP_PATH/$RPI_NAME$mySuffix.ext4 -o $qualifiedDeviceName"
 	fi
@@ -240,7 +240,7 @@ elif [ $RUN_MODE = "backup" ]; then
 	elif [ "$BACKUP_PATH_MODE" = "ssh+zip://" ]; then
                 BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.img.gz"
                 myCommand="USER is $USER Server is $SERVER Port is $PORT Backup_path is $BACKUP_PATH"
-                myCommand="dd if=$qualifiedDeviceName | pv | gzip | ssh $USER@$SERVER -p $PORT \"cat | dd of=$BACKUP_PATH\""
+                myCommand="dd if=$qualifiedDeviceName | pv | ssh $USER@$SERVER -p $PORT \"cat | gzip | dd of=$BACKUP_PATH\""
 	else
 		myCommand="dd of=$BACKUP_PATH/$RPI_NAME$mySuffix.img if=$qualifiedDeviceName"
 	fi
@@ -253,19 +253,12 @@ elif [ $RUN_MODE = "backup" ]; then
 		myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName | ssh $USER@$SERVER -p $PORT \"cat > $BACKUP_PATH\""
 	elif [ "$BACKUP_PATH_MODE" = "ssh+zip://" ]; then
                 BACKUP_PATH="$BACKUP_PATH_SSH_PREFIX$RPI_NAME$mySuffix.ext4.gz"
-                myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName | gzip | ssh $USER@$SERVER -p $PORT \"cat > $BACKUP_PATH\""
+                myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName | ssh $USER@$SERVER -p $PORT \"cat | gzip > $BACKUP_PATH\""
 	else
 		myCommand="partclone.ext4 -c -d -s $qualifiedDeviceName -o $BACKUP_PATH/$RPI_NAME$mySuffix.ext4"
 	fi
 	doCommand $myCommand;
 fi
-#Backup
-#sudo dd of=/media/cezar/Arhiva/PI/20160304/rpi3_jessie_head.img if=/dev/sdc1
-#sudo partclone.ext4 -c -d -s /dev/sdc2 -o /media/cezar/Arhiva/PI/20160304/rpi3_jessie_main.ext4
-
-#Restore
-#sudo dd if=/media/cezar/Arhiva/PI/20160304/rpi3_jessie_head.img of=/dev/sdc1
-#sudo partclone.ext4 -r -d -s /media/cezar/Arhiva/PI/20160304/rpi3_jessie_main.ext4 -o /dev/sdc2
 
 
 
