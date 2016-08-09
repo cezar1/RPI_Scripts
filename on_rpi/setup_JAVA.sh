@@ -44,9 +44,9 @@ if [ -d "$DIRECTORY" ]; then
 		do myCommand="export myJAVA=$n";
 		doCommandHelper $myCommand; 
 	done
-	myCommand="export JAVA_HOME=\$myJAVA/bin/java";
+	myCommand="export JAVA_HOME=\$myJAVA";
 	doCommandHelper $myCommand; 
-	myCommand="export PATH=\$PATH:\$myJAVA/bin";
+	myCommand="export PATH=\$myJAVA/bin:\$PATH";
 	doCommandHelper $myCommand; 
 	myCommand="rm ~/$HELPER_FILE";
 	doCommandShell $myCommand; 
