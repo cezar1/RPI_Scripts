@@ -22,7 +22,8 @@ doCommand () {
 	else
 		echo "REAL_RUN: $@"
 		if [ $1 = "fdisk" ]; then
-			if [ "$BACKUP_PATH_MODE"="ssh://" -o "$BACKUP_PATH_MODE"="ssh+zip://" ]; then
+			echo "BACKUP_PATH_MODE is $BACKUP_PATH_MODE"
+			if [ "$BACKUP_PATH_MODE" = "ssh://" -o "$BACKUP_PATH_MODE" = "ssh+zip://" ]; then
 				echo "Doing LS on ssh destination"
 				echo $RPI_NAME > sudofdisk-l_$RPI_NAME.txt
 				echo "username $USERNAME" >> sudofdisk-l_$RPI_NAME.txt
