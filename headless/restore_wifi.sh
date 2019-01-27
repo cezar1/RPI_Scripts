@@ -7,6 +7,9 @@ while true ; do
    else
       echo "Network connection down! Attempting reconnection."
       ifup --force wlan0
+      sudo ip link set wlan0 down
+      sleep 5
+      sudo ip link set wlan0 up
       sleep 10
    fi
 done
